@@ -1,0 +1,440 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+<meta name="theme-color" content="#0b0f14" id="metaTheme" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<title>Detector de Edad, Ánimo y Género</title>
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%;overflow:hidden}
+body{
+  background:var(--bg);color:var(--tx);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-size:14px;line-height:1.5;overscroll-behavior:none;
+  -webkit-font-smoothing:antialiased;
+  transition:background .25s,color .25s;
+}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:4px}
+
+:root{
+  --bg:#0b0f14;--panel:#141a22;--panel2:#1b2430;--panel3:#212c3a;
+  --line:#26313f;--line2:#2f3d4d;
+  --tx:#e6edf3;--tx2:#8b98a6;--tx3:#5b6b7c;
+  --ok:#2ecc71;--warn:#f1c40f;--alert:#e67e22;--crit:#e74c3c;
+  --accent:#3ba3ff;--accent2:#9b59b6;--btnTx:#04121f;
+  --radius:14px;--radius-sm:10px;
+  --shadow:0 10px 30px rgba(0,0,0,.45);
+  --shadow-lg:0 20px 50px rgba(0,0,0,.55);
+  --videoBg:#000;
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+}
+html[data-theme="light"]{
+  --bg:#f4f6f9;--panel:#ffffff;--panel2:#eef2f6;--panel3:#e2e8ef;
+  --line:#d5dde5;--line2:#c1ccd6;
+  --tx:#1a2430;--tx2:#5a6773;--tx3:#8a95a1;
+  --ok:#1e9e57;--warn:#c99500;--alert:#d2691e;--crit:#d63031;
+  --accent:#1e88e5;--accent2:#8e44ad;--btnTx:#ffffff;
+  --shadow:0 8px 24px rgba(30,45,60,.10);
+  --shadow-lg:0 20px 50px rgba(30,45,60,.18);
+  --videoBg:#e8edf2;
+}
+
+.app{display:flex;flex-direction:column;height:100dvh;height:100vh;max-width:1600px;margin:0 auto}
+
+header{
+  display:flex;align-items:center;gap:14px;
+  padding:calc(12px + var(--safe-top)) 18px 12px;
+  border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,var(--panel),var(--bg));
+  flex:0 0 auto;position:relative;z-index:10;
+}
+header .brand{display:flex;align-items:center;gap:12px;min-width:0;flex:1}
+header .logo{
+  width:40px;height:40px;border-radius:11px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:grid;place-items:center;font-size:20px;flex:0 0 auto;
+  box-shadow:0 4px 14px rgba(59,163,255,.28);
+}
+header h1{font-size:15px;margin:0;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header .sub{font-size:11.5px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.headerActions{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.iconBtn{
+  width:38px;height:38px;border-radius:10px;
+  background:var(--panel2);border:1px solid var(--line);color:var(--tx2);
+  font-size:17px;display:grid;place-items:center;transition:.15s;flex:0 0 auto;
+}
+.iconBtn:hover{background:var(--panel3);color:var(--tx);border-color:var(--line2)}
+.iconBtn:active{transform:scale(.94)}
+
+.pill{
+  display:flex;align-items:center;gap:8px;
+  padding:7px 14px;border-radius:999px;
+  font-size:12px;font-weight:700;letter-spacing:.4px;
+  background:var(--panel2);border:1px solid var(--line);
+  white-space:nowrap;flex:0 0 auto;transition:all .25s;
+}
+.pill .dot{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 10px currentColor;flex:0 0 auto}
+.pill[data-lvl="0"]{color:var(--ok)}
+.pill[data-lvl="1"]{background:rgba(241,196,15,.14);border-color:rgba(241,196,15,.5);color:var(--warn)}
+.pill[data-lvl="2"]{background:rgba(230,126,34,.14);border-color:rgba(230,126,34,.5);color:var(--alert)}
+.pill[data-lvl="3"]{background:rgba(231,76,60,.16);border-color:rgba(231,76,60,.55);color:var(--crit)}
+.pill[data-lvl="1"] .dot{background:var(--warn)}
+.pill[data-lvl="2"] .dot{background:var(--alert)}
+.pill[data-lvl="3"] .dot{background:var(--crit);animation:pulseDot .7s infinite}
+@keyframes pulseDot{50%{opacity:.25;transform:scale(.85)}}
+
+main{
+  flex:1 1 auto;display:grid;grid-template-columns:1fr 360px;gap:14px;
+  padding:14px;padding-bottom:calc(14px + var(--safe-bottom));
+  min-height:0;overflow:hidden;
+}
+
+.stage{
+  position:relative;background:var(--videoBg);
+  border-radius:var(--radius);overflow:hidden;border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;
+  min-height:0;box-shadow:var(--shadow);
+}
+.stage video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:block}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+
+aside{display:flex;flex-direction:column;gap:12px;min-height:0;overflow-y:auto;overflow-x:hidden;padding-right:2px}
+.card{
+  background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--radius);padding:15px;flex:0 0 auto;
+}
+.card h2{
+  margin:0 0 11px;font-size:11px;text-transform:uppercase;
+  letter-spacing:1.2px;color:var(--tx2);font-weight:700;
+  display:flex;align-items:center;gap:7px;
+}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.m{background:var(--panel2);border-radius:var(--radius-sm);padding:11px 12px;min-width:0}
+.m .k{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--tx2);margin-bottom:6px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m .v{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.5px;line-height:1.1}
+.m .v small{font-size:10.5px;color:var(--tx2);font-weight:600;margin-left:2px}
+.m.ok .v{color:var(--ok)}
+.m.warn .v{color:var(--warn)}
+.m.bad .v{color:var(--crit)}
+.m.acc .v{color:var(--accent)}
+
+.bars{display:flex;flex-direction:column;gap:9px;margin-top:12px}
+.bar .lbl{display:flex;justify-content:space-between;align-items:baseline;font-size:11.5px;color:var(--tx2);margin-bottom:4px;font-weight:600;gap:8px}
+.bar .lbl b{color:var(--tx);font-variant-numeric:tabular-nums;font-size:12px;font-weight:700}
+.track{height:7px;border-radius:4px;background:var(--panel2);overflow:hidden}
+.fill{height:100%;width:0;border-radius:4px;background:var(--accent);transition:width .12s linear,background .2s}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <div class="logo">🧠</div>
+      <div style="min-width:0">
+        <h1>Detector de Edad, Ánimo y Género</h1>
+        <div class="sub">Análisis facial en tiempo real</div>
+      </div>
+    </div>
+    <div class="headerActions">
+      <div class="pill" id="statusPill" data-lvl="0"><span class="dot"></span><span id="statusTxt">Listo</span></div>
+    </div>
+  </header>
+
+  <main>
+    <div class="stage" id="stage">
+      <video id="video" autoplay muted playsinline></video>
+      <canvas id="overlay"></canvas>
+    </div>
+
+    <aside>
+      <!-- DEMOGRAFÍA -->
+      <div class="card">
+        <h2><span>🧠</span> Detección demográfica</h2>
+        <div class="grid">
+          <div class="m acc"><div class="k">Edad</div><div class="v" id="dAge">—</div></div>
+          <div class="m acc"><div class="k">Género</div><div class="v" id="dGender">—</div></div>
+          <div class="m ok"><div class="k">Ánimo</div><div class="v" id="dMood">—</div></div>
+          <div class="m warn"><div class="k">Confianza</div><div class="v" id="dConf">—</div></div>
+        </div>
+        <div class="bars" id="emoBars"></div>
+      </div>
+
+      <div class="card">
+        <h2><span>ℹ️</span> Estado del modelo</h2>
+        <div id="modelInfo" style="font-size:12px;color:var(--tx2);line-height:1.7">
+          Cargando modelos de IA…
+        </div>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script>
+/* ============================================================
+   CONFIGURACIÓN
+   ============================================================ */
+const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
+const DETECT_INTERVAL = 250;      // ms entre detecciones (4 fps)
+const UI_INTERVAL     = 500;      // ms entre updates de UI
+const EMA_ALPHA       = 0.3;      // suavizado temporal
+
+/* ============================================================
+   ESTADO
+   ============================================================ */
+const video   = document.getElementById('video');
+const overlay = document.getElementById('overlay');
+const ctx     = overlay.getContext('2d');
+
+let lastDetect = 0;
+let lastUI     = 0;
+let running    = false;
+
+// Suavizado EMA
+const smooth = {
+  age: null,
+  genderMale: null,
+  expressions: {}
+};
+
+/* ============================================================
+   CARGA DE MODELOS
+   ============================================================ */
+async function loadModels() {
+  const info = document.getElementById('modelInfo');
+  try {
+    info.textContent = 'Cargando detector de rostros…';
+    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+
+    info.textContent = 'Cargando landmarks…';
+    await faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL);
+
+    info.textContent = 'Cargando expresiones…';
+    await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
+
+    info.textContent = 'Cargando edad y género…';
+    await faceapi.nets.ageGenderNet.loadFromUri(MODEL_URL);
+
+    info.innerHTML = '<span style="color:var(--ok)">✓ Modelos cargados correctamente</span>';
+    return true;
+  } catch (e) {
+    info.innerHTML = '<span style="color:var(--crit)">✗ Error al cargar modelos: ' + e.message + '</span>';
+    return false;
+  }
+}
+
+/* ============================================================
+   UTILIDADES
+   ============================================================ */
+function ema(prev, next, alpha = EMA_ALPHA) {
+  if (next == null || isNaN(next)) return prev;
+  return prev == null ? next : prev * (1 - alpha) + next * alpha;
+}
+
+function ageRange(age) {
+  if (age == null) return '—';
+  const margin = 4;
+  const lo = Math.max(0, Math.round(age - margin));
+  const hi = Math.round(age + margin);
+  return lo + '-' + hi;
+}
+
+function ageGroup(age) {
+  if (age == null) return '';
+  if (age < 13) return 'niño';
+  if (age < 20) return 'adolescente';
+  if (age < 35) return 'joven';
+  if (age < 55) return 'adulto';
+  return 'mayor';
+}
+
+function genderLabel(probMale) {
+  if (probMale == null) return '—';
+  if (probMale > 0.75) return 'Masc.';
+  if (probMale < 0.25) return 'Fem.';
+  return 'Indet.';
+}
+
+function classifyMood(expr) {
+  if (!expr) return { mood: '—', cls: '' };
+  const happy = expr.happy || 0;
+  const neg   = (expr.sad||0) + (expr.angry||0) + (expr.fearful||0) + (expr.disgusted||0);
+  const surp  = expr.surprised || 0;
+  const neu   = expr.neutral || 0;
+
+  if (happy > 0.55) return { mood: 'Positivo', cls: 'ok' };
+  if (neg   > 0.50) return { mood: 'Negativo', cls: 'bad' };
+  if (surp  > 0.50) return { mood: 'Sorpresa', cls: 'warn' };
+  if (neu   > 0.50) return { mood: 'Neutral',  cls: '' };
+  return { mood: 'Mixto', cls: 'acc' };
+}
+
+/* ============================================================
+   LOOP PRINCIPAL
+   ============================================================ */
+async function detectLoop() {
+  if (!running) return;
+
+  const now = performance.now();
+  if (now - lastDetect < DETECT_INTERVAL) {
+    requestAnimationFrame(detectLoop);
+    return;
+  }
+  lastDetect = now;
+
+  try {
+    const options = new faceapi.TinyFaceDetectorOptions({
+      inputSize: 224,
+      scoreThreshold: 0.5
+    });
+
+    const result = await faceapi
+      .detectSingleFace(video, options)
+      .withFaceLandmarks(true)
+      .withFaceExpressions()
+      .withAgeAndGender();
+
+    if (result) {
+      processDetection(result);
+    } else {
+      smooth.age = ema(smooth.age, null, 0.1);
+    }
+
+    drawOverlay(result);
+
+    if (now - lastUI >= UI_INTERVAL) {
+      lastUI = now;
+      updateUI();
+    }
+  } catch (e) {
+    console.warn('detectLoop error', e);
+  }
+
+  requestAnimationFrame(detectLoop);
+}
+
+/* ============================================================
+   PROCESAMIENTO
+   ============================================================ */
+function processDetection(res) {
+  // --- Edad y género con EMA ---
+  smooth.age = ema(smooth.age, res.age);
+  const probMale = res.gender === 'male' ? res.genderProbability : 1 - res.genderProbability;
+  smooth.genderMale = ema(smooth.genderMale, probMale);
+
+  // --- Expresiones con EMA ---
+  for (const [k, v] of Object.entries(res.expressions)) {
+    smooth.expressions[k] = ema(smooth.expressions[k] ?? 0, v);
+  }
+}
+
+/* ============================================================
+   DIBUJO OVERLAY
+   ============================================================ */
+function drawOverlay(res) {
+  const w = video.videoWidth, h = video.videoHeight;
+  if (overlay.width !== w || overlay.height !== h) {
+    overlay.width = w; overlay.height = h;
+  }
+  ctx.clearRect(0, 0, w, h);
+  if (!res) return;
+
+  const box = res.detection.box;
+  // Espejo horizontal porque el video está scaleX(-1)
+  const x = w - box.x - box.width;
+  const y = box.y;
+
+  ctx.strokeStyle = '#3ba3ff';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(x, y, box.width, box.height);
+
+  // Etiqueta
+  const label = Math.round(smooth.age || res.age) + ' · ' + genderLabel(smooth.genderMale);
+  ctx.font = 'bold 18px system-ui, sans-serif';
+  const tw = ctx.measureText(label).width + 16;
+  ctx.fillStyle = 'rgba(59,163,255,.85)';
+  ctx.fillRect(x, y - 28, tw, 26);
+  ctx.fillStyle = '#04121f';
+  ctx.fillText(label, x + 8, y - 9);
+}
+
+/* ============================================================
+   UI
+   ============================================================ */
+function updateUI() {
+  // Edad
+  document.getElementById('dAge').textContent = ageRange(smooth.age) +
+    (smooth.age ? ' ' + ageGroup(smooth.age).slice(0,3) : '');
+  // Género
+  document.getElementById('dGender').textContent = genderLabel(smooth.genderMale);
+  // Ánimo
+  const mood = classifyMood(smooth.expressions);
+  const moodEl = document.getElementById('dMood');
+  moodEl.textContent = mood.mood;
+  moodEl.parentElement.className = 'm ' + mood.cls;
+  // Confianza
+  const gm = smooth.genderMale;
+  const conf = gm == null ? 0 : (Math.abs(gm - 0.5) * 2) * 100;
+  document.getElementById('dConf').textContent = Math.round(conf) + '%';
+
+  // Barras de emociones (top 4)
+  const entries = Object.entries(smooth.expressions)
+    .sort((a,b) => b[1] - a[1])
+    .slice(0, 4);
+  const bars = document.getElementById('emoBars');
+  bars.innerHTML = entries.map(([k, v]) => {
+    const pct = Math.round(v * 100);
+    const color = k === 'happy' ? 'var(--ok)'
+                : (k === 'sad' || k === 'angry' || k === 'fearful' || k === 'disgusted') ? 'var(--crit)'
+                : (k === 'surprised') ? 'var(--warn)'
+                : 'var(--accent)';
+    return '<div class="bar"><div class="lbl"><span>' + k + '</span><b>' + pct + '%</b></div>' +
+           '<div class="track"><div class="fill" style="width:' + pct + '%;background:' + color + '"></div></div></div>';
+  }).join('');
+
+  // Pill estado
+  const pill = document.getElementById('statusPill');
+  const txt  = document.getElementById('statusTxt');
+  if (smooth.age == null) {
+    pill.dataset.lvl = '0';
+    txt.textContent = 'Buscando rostro…';
+  } else {
+    pill.dataset.lvl = '0';
+    txt.textContent = 'Analizando';
+  }
+}
+
+/* ============================================================
+   INICIO
+   ============================================================ */
+async function start() {
+  const ok = await loadModels();
+  if (!ok) return;
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+      audio: false
+    });
+    video.srcObject = stream;
+    await video.play();
+    running = true;
+    requestAnimationFrame(detectLoop);
+  } catch (e) {
+    document.getElementById('modelInfo').innerHTML =
+      '<span style="color:var(--crit)">✗ No se pudo acceder a la cámara: ' + e.message + '</span>';
+  }
+}
+
+window.addEventListener('load', start);
+</script>
+</body>
+</html>
